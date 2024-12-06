@@ -1,0 +1,450 @@
+---
+title: "Final Paper"
+output: html_document
+date: "2024-10-03"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+###used for data cleaning and extraction
+library(dplyr)
+
+
+# Read the data
+data <- read.csv("~/Desktop/Sta302 Proj/Life Expectancy Data.csv")
+
+# Remove rows with missing values
+data_1 <- na.omit(data)
+
+# Transform 'Status' column: Developing as 0, Developed as 1
+data_clean$Status <- ifelse(data_1$Status == "Developing", 0, 1)
+
+# Save the cleaned data
+write.csv(data_clean, "~/Desktop/Sta302 Proj/cleaned_data.csv", row.names = FALSE)
+
+# Randomly select 1000 samples from the cleaned dataset
+data_sample <- data_clean[sample(nrow(data_clean), 1000), ]
+data_sample
+
+# Save the sample data to a new CSV file
+write.csv(data_sample, "~/Desktop/Sta302 Proj/sample_data.csv", row.names = FALSE)
+```
+
+
+```{r setup, include=FALSE}
+###separate data into train and test
+library(caret)
+
+# Step 1: Load the dataset
+initial_data <- read.csv("~/Desktop/Sta302 Proj/sample_data.csv")
+
+# Step 2: Remove rows with any missing values
+cleaned_data <- na.omit(initial_data)
+
+# Step 3: Split the cleaned data into training and testing sets
+set.seed(74)  # Ensure reproducibility
+train_indices <- createDataPartition(1:nrow(cleaned_data), p = 0.5, list = FALSE)
+
+# Create training and testing sets
+train_data <- cleaned_data[train_indices, ]
+test_data <- cleaned_data[-train_indices, ]
+
+# Step 4: Save the training and testing datasets to CSV files
+write.csv(train_data, "~/Desktop/Sta302 Proj/data/train_data.csv", row.names = FALSE)
+write.csv(test_data, "~/Desktop/Sta302 Proj/data/test_data.csv", row.names = FALSE)
+
+```
+
+```{r}
+model_1 <- lm(Life.expectancy ~ Status + Adult.Mortality + Alcohol + BMI + Hepatitis.B + Total.expenditure + Polio + infant.deaths  + Measles + HIV.AIDS , data = train_data)
+
+summary(model_1)
+```
+
+
+```{r}
+
+model_2 <-  lm(Life.expectancy ~ Status + Adult.Mortality + Alcohol + BMI + Total.expenditure + Polio+ HIV.AIDS , data = train_data)
+
+
+summary(model_2)
+
+```
+
+
+
+```{r}
+library(car)
+library(dplyr)
+
+vif(model_2)
+
+```
+
+```{r}
+# Full Model (Model 2)
+full_model <- lm(Life.expectancy ~ Status + Adult.Mortality + Alcohol + BMI + 
+                   Total.expenditure + Polio + HIV.AIDS, data = train_data)
+
+# Reduced Model (excluding HIV/AIDS)
+reduced_model <- lm(Life.expectancy ~ Status + Adult.Mortality + Alcohol + BMI + 
+                      Total.expenditure + Polio, data = train_data)
+
+# Perform the partial F-test
+anova(reduced_model, full_model)
+```
+###AIC###
+```{r}
+
+library(MASS)
+
+# Full model with all predictors
+full_model <- lm(Life.expectancy ~ Status + Adult.Mortality + Alcohol + BMI + 
+                   Total.expenditure + Polio + HIV.AIDS, data = train_data)
+
+# Null model with no predictors (only intercept)
+null_model <- lm(Life.expectancy ~ 1, data = train_data)
+
+# Perform stepwise model selection (both directions)
+stepwise_model <- stepAIC(null_model, 
+                          scope = list(lower = null_model, upper = full_model),
+                          direction = "both",
+                          trace = TRUE)
+
+# Summary of the chosen model
+summary(stepwise_model)
+```
+
+
+
+###start paper 3 writin!!!
+
+##### for train data distribution show ####
+```{r}
+# Adjusting margins and plotting layout for clearer boxplots
+par(mfrow = c(3, 2), mar = c(4, 4, 2, 1))  # Adjust the margin sizes
+
+# Generate histograms with corrected titles
+hist(train_data$Life.expectancy, breaks = 10, main = "Life Expectancy", col = "grey", xlab = "Life Expectancy")
+hist(train_data$Adult.Mortality, breaks = 10, main = "Adult Mortality", col = "grey", xlab = "Adult Mortality")
+hist(train_data$Alcohol, breaks = 10, main = "Alcohol Consumption", col = "grey", xlab = "Alcohol Consumption")
+hist(train_data$BMI, breaks = 10, main = "BMI", col = "grey", xlab = "BMI")
+
+# Widen the y-axis limits for boxplots to make details visible
+boxplot(train_data$GDP, main = "GDP", col = "grey", outline = TRUE, ylim = c(min(train_data$GDP, na.rm = TRUE), quantile(train_data$GDP, 0.95, na.rm = TRUE)), ylab = "GDP")
+boxplot(train_data$HIV.AIDS, main = "HIV/AIDS", col = "grey", outline = TRUE, ylim = c(min(train_data$HIV.AIDS, na.rm = TRUE), quantile(train_data$HIV.AIDS, 0.95, na.rm = TRUE)), ylab = "HIV/AIDS")
+
+# Load necessary library
+library(ggplot2)
+library(gridExtra)
+
+# Scatter plot for HIV/AIDS vs Life Expectancy
+plot1 <- ggplot(data = train_data, aes(x = GDP, y = Life.expectancy)) +
+  geom_point(color = "grey", alpha = 0.6) +
+  geom_smooth(method = lm, se = FALSE, color = "darkgrey") +
+  labs(title = "Life Expectancy vs GDP", x = "GDP", y = "Life Expectancy") +
+  theme_minimal()
+
+# Scatter plot for GDP vs Life Expectancy
+plot2 <- ggplot(data = train_data, aes(x = infant.deaths, y = Life.expectancy)) +
+  geom_point(color = "grey", alpha = 0.6) +
+  geom_smooth(method = lm, se = FALSE, color = "darkgrey") +
+  labs(title = "Life Expectancy vs infant.deaths", x = "infant.deaths", y = "Life Expectancy") +
+  theme_minimal()
+
+# Arrange the two plots side by side
+grid.arrange(plot1, plot2, nrow = 1)
+
+
+```
+### here start with condition check ###
+```{r}
+
+# Plot: Response (Actual Life Expectancy) vs. Fitted Values
+plot(model_2$fitted.values, train_data$Life.expectancy,
+     xlab = "Fitted Values (Predicted Life Expectancy)",    # Label for x-axis
+     ylab = "Actual Response (Life Expectancy)",           # Label for y-axis
+     main = "Response vs. Fitted Values",                 # Title for the plot
+     pch = 19, col = "grey")                              # Grey points, solid dots
+abline(0, 1, col = "black", lwd = 2)                      # Black diagonal reference line
+
+# Select the predictors used in your model
+selected_predictors <- train_data[, c("Status", "Adult.Mortality", "Alcohol", 
+                                      "BMI", "Total.expenditure", "Polio", "HIV.AIDS")]
+
+# Select the predictors used in your model
+selected_predictors <- train_data[, c("Status", "Adult.Mortality", "Alcohol", 
+                                      "BMI", "Total.expenditure", "Polio", "HIV.AIDS")]
+
+# Pairwise scatter plots with improved aesthetics
+pairs(selected_predictors,
+      main = "Pairwise Scatter Plots: Checking Non-linearity Among Predictors",
+      pch = 16, # Solid points
+      col = rgb(0.2, 0.4, 0.6, alpha = 0.7), # Semi-transparent dark blue
+      cex = 0.8, # Smaller point size for clarity
+      labels = c("Status", "Adult Mortality", "Alcohol", 
+                 "BMI", "Total Expenditure", "Polio", "HIV/AIDS"),
+      panel = function(x, y, ...) { # Add linear fits to scatter plots
+        points(x, y, ...)
+        abline(lm(y ~ x), col = "black", lwd = 1) # Linear fit line
+      })
+
+
+```
+```{r}
+
+# Fit the linear regression model
+full_model <- lm(Life.expectancy ~ Status + Adult.Mortality + Alcohol + BMI + 
+                   Total.expenditure + Polio + HIV.AIDS, data = train_data)
+
+# 1. Residuals vs Fitted Values
+par(mar = c(2,2,2,2) + 0.1)  # Reset margins
+plot(full_model$fitted.values, resid(full_model),
+     main = "Residuals vs Fitted Values",
+     xlab = "Fitted Values",
+     ylab = "Residuals")
+abline(h = 0, col = "red")  # Horizontal line at zero
+
+# 2. Residuals vs Each Predictor
+predictors <- c("Status", "Adult.Mortality", "Alcohol", "BMI", 
+                "Total.expenditure", "Polio", "HIV.AIDS")
+par(mfrow = c(2, 2))  # Adjust layout for multiple plots
+for (predictor in predictors) {
+  plot(train_data[[predictor]], resid(full_model),
+       main = paste("Residuals vs", predictor),
+       xlab = predictor,
+       ylab = "Residuals")
+  abline(h = 0, col = "red")  # Horizontal line at zero
+}
+
+# 3. Normal Q-Q Plot
+par(mfrow = c(1, 1))  # Reset layout
+qqnorm(resid(full_model), main = "Normal Q-Q Plot")
+qqline(resid(full_model), col = "red")
+
+
+
+```
+###do transformation
+```{r}
+# Apply log transformation to all continuous variables in the dataset
+train_data$Log_Life_expectancy <- log(train_data$Life.expectancy)
+train_data$Log_Adult_Mortality <- log(train_data$Adult.Mortality)
+train_data$Log_Alcohol <- log(train_data$Alcohol + 1)  # Add 1 to avoid log(0)
+train_data$Log_BMI <- log(train_data$BMI)
+train_data$Log_Total_Expenditure <- log(train_data$Total.expenditure)
+train_data$Log_Polio <- log(train_data$Polio + 1)      # Add 1 to avoid log(0)
+train_data$Log_HIV_AIDS <- log(train_data$HIV.AIDS + 1)  # Add 1 to avoid log(0)
+
+# Fit the fully log-transformed model
+full_model_log_all <- lm(Log_Life_expectancy ~ Status + Log_Adult_Mortality + 
+                           Log_Alcohol + Log_BMI + Log_Total_Expenditure + 
+                           Log_Polio + Log_HIV_AIDS, 
+                         data = train_data)
+
+# View the summary of the transformed model
+summary(full_model_log_all)
+
+# Plot: Response (Log-transformed Life Expectancy) vs. Fitted Values
+plot(full_model_log_all$fitted.values, train_data$Log_Life_expectancy,
+     xlab = "Fitted Values (Log-Predicted Life Expectancy)",    # Label for x-axis
+     ylab = "Actual Response (Log-Life Expectancy)",            # Label for y-axis
+     main = "Response vs. Fitted Values (Log-Transformed)",     # Title for the plot
+     pch = 19, col = "grey")                                    # Grey points, solid dots
+abline(0, 1, col = "black", lwd = 2)                            # Black diagonal reference line
+
+# Select log-transformed predictors and response
+selected_log_predictors <- train_data[, c("Status", "Log_Life_expectancy", "Log_Adult_Mortality", 
+                                          "Log_Alcohol", "Log_BMI", "Log_Total_Expenditure", 
+                                          "Log_Polio", "Log_HIV_AIDS")]
+
+# Pairwise scatter plots for log-transformed variables
+pairs(selected_log_predictors,
+      main = "Pairwise Scatter Plots: Fully Log-Transformed Variables",
+      pch = 16,  # Solid points
+      col = rgb(0.2, 0.4, 0.6, alpha = 0.7),  # Semi-transparent dark blue
+      cex = 0.8,  # Smaller point size for clarity
+      labels = c("Status", "Log Life Expectancy", "Log Adult Mortality", "Log Alcohol", 
+                 "Log BMI", "Log Total Expenditure", "Log Polio", "Log HIV/AIDS"),
+      panel = function(x, y, ...) {  # Add linear fits to scatter plots
+        points(x, y, ...)
+        abline(lm(y ~ x), col = "black", lwd = 1)  # Linear fit line
+      })
+
+
+```
+###condition check for our model
+```{r}
+
+# 1. Residuals vs Fitted Values
+par(mar = c(2, 2, 2, 2) + 0.1)  # Reset margins
+plot(full_model_log_all$fitted.values, resid(full_model_log_all),
+     main = "Residuals vs Fitted Values (Log-Transformed Model)",
+     xlab = "Fitted Values",
+     ylab = "Residuals")
+abline(h = 0, col = "red")  # Horizontal line at zero
+
+# 2. Residuals vs Each Predictor (Log-Transformed Predictors)
+log_predictors <- c("Status", "Log_Adult_Mortality", "Log_Alcohol", 
+                    "Log_BMI", "Log_Total_Expenditure", "Log_Polio", "Log_HIV_AIDS")
+par(mfrow = c(2, 2))  # Adjust layout for multiple plots
+for (predictor in log_predictors) {
+  plot(train_data[[predictor]], resid(full_model_log_all),
+       main = paste("Residuals vs", predictor),
+       xlab = predictor,
+       ylab = "Residuals")
+  abline(h = 0, col = "red")  # Horizontal line at zero
+}
+
+# 3. Normal Q-Q Plot
+par(mfrow = c(1, 1))  # Reset layout
+qqnorm(resid(full_model_log_all), main = "Normal Q-Q Plot (Log-Transformed Model)")
+qqline(resid(full_model_log_all), col = "red")
+# Calculate Cook's Distance
+cooks_d <- cooks.distance(full_model_log_all)
+
+# Plot Cook's Distance
+plot(cooks_d, 
+     type = "h", 
+     main = "Cook's Distance (Log-Transformed Model)", 
+     xlab = "Observation Index", 
+     ylab = "Cook's Distance")
+abline(h = 4 / (nrow(train_data) - length(coef(full_model_log_all))), col = "red", lty = 2)  # Threshold line
+
+# Calculate leverage values (hat values)
+leverage_values <- hatvalues(full_model_log_all)
+
+# Define the leverage threshold
+p <- length(coef(full_model_log_all)) - 1  # Number of predictors
+n <- nrow(train_data)  # Number of observations
+leverage_threshold <- 2 * (p + 1) / n
+
+# Identify high-leverage points
+high_leverage_points <- which(leverage_values > leverage_threshold)
+
+# Print results
+cat("Leverage Threshold:", leverage_threshold, "\n")
+cat("High-Leverage Points:", high_leverage_points, "\n")
+
+# 1. Calculate Leverage (Hat Values)
+leverage_values <- hatvalues(full_model_log_all)
+
+# 2. Define the leverage threshold
+p <- length(coef(full_model_log_all)) - 1  # Number of predictors
+n <- nrow(train_data)  # Number of observations
+leverage_threshold <- 2 * (p + 1) / n
+
+# Identify high-leverage points
+high_leverage_points <- which(leverage_values > leverage_threshold)
+
+# Print leverage points
+cat("Leverage Threshold:", leverage_threshold, "\n")
+cat("High-Leverage Points:", high_leverage_points, "\n")
+
+# 3. Calculate Cook's Distance
+cooks_d <- cooks.distance(full_model_log_all)
+
+# Define the Cook's Distance threshold
+cooks_threshold <- 4 / (n - p - 1)
+
+# Identify influential points
+influential_points <- which(cooks_d > cooks_threshold)
+
+# Print influential points
+cat("Cook's Distance Threshold:", cooks_threshold, "\n")
+cat("Influential Points:", influential_points, "\n")
+
+# 4. Visualize Diagnostics
+par(mfrow = c(2, 2))  # Diagnostic plots layout
+
+# Residuals vs Fitted Values
+plot(full_model_log_all$fitted.values, resid(full_model_log_all),
+     main = "Residuals vs Fitted Values",
+     xlab = "Fitted Values",
+     ylab = "Residuals")
+abline(h = 0, col = "red")
+
+# Cook's Distance Plot
+plot(cooks_d, type = "h",
+     main = "Cook's Distance",
+     xlab = "Observation Index",
+     ylab = "Cook's Distance")
+abline(h = cooks_threshold, col = "red", lty = 2)
+
+# Residuals vs Leverage Plot
+plot(leverage_values, resid(full_model_log_all),
+     main = "Residuals vs Leverage",
+     xlab = "Leverage",
+     ylab = "Residuals",
+     pch = 20)
+abline(v = leverage_threshold, col = "blue", lty = 2)  # Leverage threshold
+abline(h = 0, col = "red", lty = 2)  # Horizontal line
+points(leverage_values[high_leverage_points], resid(full_model_log_all)[high_leverage_points],
+       col = "red", pch = 19)  # Highlight high-leverage points
+
+
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
+
+
+```
+
+
+
+```{r}
+# Apply log transformation to all continuous variables in the dataset
+train_data$Log_Life_expectancy <- log(train_data$Life.expectancy)
+train_data$Log_Adult_Mortality <- log(train_data$Adult.Mortality)
+train_data$Log_Alcohol <- log(train_data$Alcohol + 1)  # Add 1 to avoid log(0)
+train_data$Log_BMI <- log(train_data$BMI)
+train_data$Log_Total_Expenditure <- log(train_data$Total.expenditure)
+train_data$Log_Polio <- log(train_data$Polio + 1)      # Add 1 to avoid log(0)
+train_data$Log_HIV_AIDS <- log(train_data$HIV.AIDS + 1)  # Add 1 to avoid log(0)
+
+# Fit the fully log-transformed model (train data)
+model_5 <- lm(Log_Life_expectancy ~ Status + Log_Adult_Mortality + 
+                           Log_Alcohol + Log_BMI + Log_Total_Expenditure + 
+                           Log_Polio + Log_HIV_AIDS, 
+                         data = train_data)
+summary(model_5)
+
+# Apply log transformation to all continuous variables in the dataset (test data)
+test_data$Log_Life_expectancy <- log(test_data$Life.expectancy)
+test_data$Log_Adult_Mortality <- log(test_data$Adult.Mortality)
+test_data$Log_Alcohol <- log(test_data$Alcohol + 1)  # Add 1 to avoid log(0)
+test_data$Log_BMI <- log(test_data$BMI)
+test_data$Log_Total_Expenditure <- log(test_data$Total.expenditure)
+test_data$Log_Polio <- log(test_data$Polio + 1)      # Add 1 to avoid log(0)
+test_data$Log_HIV_AIDS <- log(test_data$HIV.AIDS + 1)  # Add 1 to avoid log(0)
+
+# Fit the fully log-transformed model (test data)
+model_6 <- lm(Log_Life_expectancy ~ Status + Log_Adult_Mortality + 
+                           Log_Alcohol + Log_BMI + Log_Total_Expenditure + 
+                           Log_Polio + Log_HIV_AIDS, 
+                         data = test_data)
+summary(model_6)
+
+# Function to extract the necessary metrics from the model
+get_model_metrics <- function(model, data) {
+  ssres <- sum(residuals(model)^2)  # Sum of squared residuals
+  rsq <- summary(model)$r.squared  # R-squared
+  rsq_adj <- summary(model)$adj.r.squared  # Adjusted R-squared
+  aic <- AIC(model)  # AIC
+  k <- length(coef(model))  # Number of parameters
+  n <- nrow(data)  # Number of observations
+  aicc <- aic + (2 * k * (k + 1)) / (n - k - 1)  # AICc (corrected AIC)
+  bic <- BIC(model)  # BIC
+  
+  return(c(ssres, rsq, rsq_adj, aic, aicc, bic))
+}
+
+# Extract metrics for model_5 (train data)
+metrics_model_5 <- get_model_metrics(model_5, train_data)
+# Extract metrics for model_6 (test data)
+metrics_model_6 <- get_model_metrics(model_6, test_data)
+
+# Display the metrics for each model
+metrics_model_5
+metrics_model_6
+
+```
